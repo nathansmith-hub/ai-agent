@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -11,16 +12,30 @@ def main():
     if not api_key:
         print("Error: GEMINI_API_KEY not set.")
         sys.exit(1)
-    
-    if len(sys.argv) < 2:
-        print("Error: A command line prompt is required.")
-        sys.exit(1)
 
-    user_prompt = sys.argv[1]
     client = genai.Client(api_key=api_key)
 
+    parser = argparse.ArgumentParser(
+        description="An LLM-powered command-line program capable of reading, updating, and running Python code using the Gemini API."
+    )
+
+    parser.add_argument(
+        'prompt',
+        type=str,
+        help='The text prompt to send to the generative model'
+    )
+
+    parser.add_argument(
+        '--verbose',
+        '-v',
+        action='store_true',
+        help='Enable verbose output for detailed steps and debugging.'
+    )
+
+    args = parser.parse_args()
+
     messages = [
-        types.Content(role="user", parts=[types.Part(text=user_prompt)]),
+        types.Content(role="user", parts=[types.Part(text=args.prompt)]),
     ]
 
     try:
@@ -33,12 +48,16 @@ def main():
         sys.exit(1)
 
     try:
-        print(response.text)
         meta = getattr(response, "usage_metadata", None)
-        if meta:
+        if args.verbose:
             print()
-            print(f"Prompt tokens: {meta.prompt_token_count}")
-            print(f"Response tokens: {meta.candidates_token_count}")
+            print(f'User prompt: "{args.prompt}"')
+            if meta is not None:
+                if hasattr(meta, "prompt_token_count"):
+                    print(f"Prompt tokens: {meta.prompt_token_count}")
+                if hasattr(meta, "candidates_token_count"):
+                    print(f"Response tokens: {meta.candidates_token_count}")
+        print(response.text)
     except Exception as e:
         print(f"failed to read response: {e}")
         sys.exit(1)
