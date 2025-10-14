@@ -1,4 +1,8 @@
-venv/
-.env
-*.pyc
+# Python-generated files
+*.py[oc]
 **/__pycache__/
+
+# Virtual Environments
+.env
+.venv
+venv/
