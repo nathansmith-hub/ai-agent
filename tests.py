@@ -1,25 +1,25 @@
 # python
-from functions.get_files_info import get_files_info
+from functions.get_file_content import get_file_content
 
 def test():
-    # Case 1: list contents of the working directory itself
-    result = get_files_info("calculator", ".")
-    print("Result for current directory:")
+    # Case 1: list contents of calculator", "main.py")
+    result = get_file_content("calculator", "main.py")
+    print("Result for main.py:")
     print(result)
 
-    # Case 2: list a subdirectory inside the working directory
-    result = get_files_info("calculator", "pkg")
-    print("Result for 'pkg' directory:")
+    # Case 2: list contents of pkg/calculator.py
+    result = get_file_content("calculator", "pkg/calculator.py")
+    print("Result for pkg/calculator.py:")
     print(result)
 
-    # Case 3: attempt to access an absolute path outside the sandbox
-    result = get_files_info("calculator", "/bin")
-    print("Result for '/bin' directory:")
+    # Case 1: list contents of /bin/cat
+    result = get_file_content("calculator", "/bin/cat")
+    print("Result for /bin/cat:")
     print(result)
 
-    # Case 4: attempt to escape the sandbox with a relative path
-    result = get_files_info("calculator", "../")
-    print("Result for '../' directory:")
+    # Case 1: list contents of pkg/does_not_exist.py
+    result = get_file_content("calculator", "pkg/does_not_exist.py")
+    print("Result for pkg/does_not_exist.py:")
     print(result)
 
 

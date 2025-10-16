@@ -1,0 +1,2 @@
+# python
+MAX_CHARS = 10000
