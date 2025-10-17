@@ -1,25 +1,20 @@
 # python
-from functions.get_file_content import get_file_content
+from functions.write_file import write_file
 
 def test():
-    # Case 1: list contents of calculator", "main.py")
-    result = get_file_content("calculator", "main.py")
-    print("Result for main.py:")
+    # Case 1: write "wait, this isn't lorem ipsum" to calculator/lorem.txt
+    result = write_file("calculator", "lorem.txt", "wait, this isn't lorem ipsum")
+    print("Result for lorem.txt:")
     print(result)
 
-    # Case 2: list contents of pkg/calculator.py
-    result = get_file_content("calculator", "pkg/calculator.py")
-    print("Result for pkg/calculator.py:")
+    # Case 2: write "lorem ipsum dolor sit amet" to /calculator/pkg/morelorem.txt
+    result = write_file("calculator", "pkg/morelorem.txt", "lorem ipsum dolor sit amet")
+    print("Result for pkg/morelorem.txt:")
     print(result)
 
-    # Case 1: list contents of /bin/cat
-    result = get_file_content("calculator", "/bin/cat")
-    print("Result for /bin/cat:")
-    print(result)
-
-    # Case 1: list contents of pkg/does_not_exist.py
-    result = get_file_content("calculator", "pkg/does_not_exist.py")
-    print("Result for pkg/does_not_exist.py:")
+    # Case 13: write "this should not be allowed" to /tmp/temp.txt
+    result = write_file("calculator", "/tmp/temp.txt", "this should not be allowed")
+    print("Result for /tmp/temp.txt:")
     print(result)
 
 
