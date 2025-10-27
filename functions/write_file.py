@@ -1,5 +1,6 @@
 # python
 import os
+from google.genai import types
 
 def write_file(working_directory, file_path, content):
     # Resolve the working directory to an absolute, normalized path
@@ -23,3 +24,23 @@ def write_file(working_directory, file_path, content):
 
     # Confirm success with the required message and character count
     return f'Successfully wrote to "{file_path}" ({len(content)} characters written)'
+
+# Function declaration schema for tool usage by the LLM
+schema_write_file = types.FunctionDeclaration(
+    name="write_file",
+    description="Writes content to a file within the working directory and creates the file if it does not exist.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The filepath to write to, relative to the working directory.",
+            ),
+            "content": types.Schema(
+                type=types.Type.STRING,
+                description="Content to write to the file."
+            ),
+        },
+        required=["file_path", "content"],
+    ),
+)

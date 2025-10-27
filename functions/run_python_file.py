@@ -2,6 +2,7 @@
 import os
 import sys
 import subprocess
+from google.genai import types
 
 def run_python_file(working_directory, file_path, args=[]):
     # Resolve absolute paths to avoid path traversal and normalize inputs
@@ -57,3 +58,26 @@ def run_python_file(working_directory, file_path, args=[]):
         # Catch unexpected execution errors and return a standardized message
         return f"Error: executing Python file: {e}"
 
+# Function declaration schema for tool usage by the LLM
+schema_run_python_file = types.FunctionDeclaration(
+    name="run_python_file",
+    description="Executes a Python file within the working directory and returns the output from the interpreter.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The filepath to execute, relative to the working directory",
+            ),
+            "args": types.Schema(
+                type=types.Type.ARRAY,
+                items=types.Schema(
+                    type=types.Type.STRING,
+                    description="An argument to pass to the Python file.",
+                ),
+                description="Optional arguments to be used when executing the python file.",
+            ),
+        },
+        required=["file_path"],
+    ),
+)

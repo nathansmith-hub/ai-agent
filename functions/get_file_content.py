@@ -1,6 +1,7 @@
 # python
 import os
 from config import MAX_CHARS
+from google.genai import types
 
 def get_file_content(working_directory, file_path):
     # Normalize and resolve absolute paths for sandboxing
@@ -31,3 +32,18 @@ def get_file_content(working_directory, file_path):
     except Exception as e:
         # Convert any I/O or OS errors into a standardized error string
         return f"Error: {e}"
+
+# Function declaration schema for tool usage by the LLM
+schema_get_file_content = types.FunctionDeclaration(
+    name="get_file_content",
+    description="Reads and returns the first {MAX_CHARS} characters of the content from a specified file within the working directory.",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "file_path": types.Schema(
+                type=types.Type.STRING,
+                description="The filepath to read content from, relative to the working directory",
+            ),
+        },
+    ),
+)

@@ -2,10 +2,14 @@
 import os
 import sys
 import argparse
+
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from functions.get_files_info import schema_get_files_info
+
+from prompts import system_prompt
+from call_function import available_functions
+
 
 def main():
     # Load environment variables from a .env file if present
@@ -47,24 +51,7 @@ def main():
         types.Content(role="user", parts=[types.Part(text=args.prompt)]),
     ]
 
-    # Declare available tool(s) for the model (function schemas only)
-    available_functions = types.Tool(
-        function_declarations=[
-            schema_get_files_info,
-        ]
-    )
-
     try:
-        # System instruction guiding the model’s tool-usage behavior
-        system_prompt = """
-You are a helpful AI coding agent.
-
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
-
-- List files and directories
-
-All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
-"""
         # Invoke the model with tools enabled
         response = client.models.generate_content(
             model='gemini-2.0-flash-001',
