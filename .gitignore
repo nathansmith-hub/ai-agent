@@ -1,6 +1,8 @@
 # Build Artifacts
 build/
 dist/
+wheels/
+*.egg-info
 
 # Python-generated files
 *.py[oc]
