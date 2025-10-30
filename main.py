@@ -7,102 +7,127 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from config import MAX_ITERS
 from prompts import system_prompt
 from call_functions import available_functions
 from functions.call_function import call_function
 
 def main():
-    # Load environment variables from a .env file if present
+    # Load env vars from .env if present
     load_dotenv()
     api_key = os.environ.get("GEMINI_API_KEY")
     
-    # Exit early if the API key is missing
+    # Fail fast if API key missing
     if not api_key:
         print("Error: GEMINI_API_KEY not set.")
         sys.exit(1)
 
-    # Initialize the Gemini client using the provided API key
+    # Create Gemini client
     client = genai.Client(api_key=api_key)
 
-    # Configure the CLI interface and help text
+    # CLI setup
     parser = argparse.ArgumentParser(
-        description="An LLM-powered command-line program capable of reading, updating, and running Python code using the Gemini API."
+        description="LLM-powered CLI that can read, update, and run Python code via Gemini tools."
     )
-
-    # Required positional argument: free-form prompt for the model
     parser.add_argument(
         'prompt',
         type=str,
-        help='The text prompt to send to the generative model'
+        help='Free-form prompt for the model'
     )
-
-    # Optional verbosity flag for additional diagnostics
     parser.add_argument(
         '--verbose',
         '-v',
         action='store_true',
-        help='Enable verbose output for detailed steps and debugging.'
+        help='Enable detailed output'
     )
-
-    # Parse CLI arguments
     args = parser.parse_args()
 
-    # Build a single-turn user message for the API
+    # Seed the conversation with the user prompt
     messages = [
         types.Content(role="user", parts=[types.Part(text=args.prompt)]),
     ]
 
-    try:
-        # Invoke the model with tool definitions and a system instruction
-        response = client.models.generate_content(
-            model='gemini-2.0-flash-001',
-            contents=messages,
-            config=types.GenerateContentConfig(
-                tools=[available_functions],   # advertise callable tools
-                system_instruction=system_prompt,  # steer the model’s behavior
-            ),
-        )
-    except Exception as e:
-        # Surface model invocation failures
-        print(f"generate_content failed: {e}")
-        sys.exit(1)
+    # Agent loop: iterate tool->model until final text or max iters
+    for _ in range(MAX_ITERS):
+        try:
+            # Ask the model for the next step using full message history
+            response = client.models.generate_content(
+                model='gemini-2.0-flash-001',
+                contents=messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions],           # advertise available tools
+                    system_instruction=system_prompt,      # steer behavior toward tool use
+                ),
+            )
 
-    try:
-        # Optionally print request/response metadata when verbose
-        meta = getattr(response, "usage_metadata", None)
-        if args.verbose:
-            print()
-            print(f'User prompt: "{args.prompt}"')
-            if meta is not None:
-                if hasattr(meta, "prompt_token_count"):
-                    print(f"Prompt tokens: {meta.prompt_token_count}")
-                if hasattr(meta, "candidates_token_count"):
-                    print(f"Response tokens: {meta.candidates_token_count}")
+            # Add all candidate contents to the conversation
+            if getattr(response, "candidates", None):
+                for cand in response.candidates:
+                    if cand.content is not None:
+                        messages.append(cand.content)
 
-        # Prefer executing tool calls over printing free-form text
-        calls = getattr(response, "function_calls", None)
-        if calls:
-            for fc in calls:
-                # Route the model's function call to our dispatcher
-                function_call_result = call_function(fc, verbose=args.verbose)
+        except Exception as e:
+            # Handle API call failures
+            print(f"generate_content failed: {e}")
+            sys.exit(1)
 
-                # Validate the standardized tool response shape
-                try:
-                    resp = function_call_result.parts[0].function_response.response
-                except Exception:
-                    raise RuntimeError("Function call returned invalid Content shape")
-                
-                # Show the tool result in verbose mode
-                if args.verbose:
-                    print(f"-> {resp}")
-        else:
-            # Fall back to plain text if no function call was requested
-            print(response.text)
-    except Exception as e:
-        # Handle unexpected response shapes or printing errors
-        print(f"failed to read response: {e}")
-        sys.exit(1)
+        try:
+            # Optional usage metadata
+            meta = getattr(response, "usage_metadata", None)
+            if args.verbose:
+                print()
+                print(f'User prompt: "{args.prompt}"')
+                if meta is not None:
+                    if hasattr(meta, "prompt_token_count"):
+                        print(f"Prompt tokens: {meta.prompt_token_count}")
+                    if hasattr(meta, "candidates_token_count"):
+                        print(f"Response tokens: {meta.candidates_token_count}")
+
+            # If the model requested tool calls, execute them
+            calls = getattr(response, "function_calls", None)
+            if calls:
+                for fc in calls:
+                    # Dispatch the tool call to our implementation
+                    function_call_result = call_function(fc, verbose=args.verbose)
+
+                    # Validate/peek into the tool response payload (optional)
+                    try:
+                        resp = function_call_result.parts[0].function_response.response
+
+                        # Append the structured tool response for the next turn
+                        messages.append(
+                            types.Content(
+                                role="user",
+                                parts=[
+                                    types.Part(
+                                        function_response=function_call_result.parts[0].function_response
+                                    )
+                                ],
+                            )
+                        )
+
+                    except Exception:
+                        # The tool must return a standardized Content shape
+                        raise RuntimeError("Function call returned invalid Content shape")
+                    
+                    # Verbose: show summarized tool output
+                    if args.verbose:
+                        print(f"-> {resp}")
+
+                # Continue so the model can react to tool outputs
+                continue
+
+            # No tool calls: if we have final text, print and exit
+            if response.text:
+                print(response.text)
+                break
+
+        except Exception as e:
+            # Handle unexpected response shapes or output errors
+            print(f"failed to read response: {e}")
+            sys.exit(1)
 
 if __name__ == "__main__":
-    # Standard CLI entrypoint
+    # CLI entry point
     main()
+    
