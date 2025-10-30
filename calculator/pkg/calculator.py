@@ -9,6 +9,7 @@ class Calculator:
             "/": lambda a, b: a / b,
         }
         # Operator precedence (higher number = higher priority)
+        # Note: follow standard arithmetic precedence (* and / bind tighter than + and -)
         self.precedence = {
             "+": 1,
             "-": 1,
