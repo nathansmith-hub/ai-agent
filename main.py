@@ -60,14 +60,32 @@ def main():
                 ),
             )
 
+            # Validate we received a usable response
+            if not response:
+                raise RuntimeError("Gemini API returned empty response")
+
             # Add all candidate contents to the conversation
             if getattr(response, "candidates", None):
                 for cand in response.candidates:
                     if cand.content is not None:
                         messages.append(cand.content)
+            
+            else:
+                # No candidates could indicate rate limiting or other API issues
+                raise RuntimeError("Gemini API response contained no candidates")
+
+        except ValueError as e:
+            # Handle incorrect parameters
+            print(f"Invalid request parameters:  {e}")
+            sys.exit(1)
+
+        except ConnectionError as e:
+            # Handle network issues
+            print(f"Network error connecting to Gemini API:  {e}")
+            sys.exit(1)
 
         except Exception as e:
-            # Handle API call failures
+            # Handle other API call failures
             print(f"generate_content failed: {e}")
             sys.exit(1)
 
@@ -77,21 +95,28 @@ def main():
             if args.verbose:
                 print()
                 print(f'User prompt: "{args.prompt}"')
-                if meta is not None:
-                    if hasattr(meta, "prompt_token_count"):
+                if not meta:
+                    print("Warning:  No usage metadata available.")
+                else:
                         print(f"Prompt tokens: {meta.prompt_token_count}")
-                    if hasattr(meta, "candidates_token_count"):
                         print(f"Response tokens: {meta.candidates_token_count}")
 
             # If the model requested tool calls, execute them
             calls = getattr(response, "function_calls", None)
             if calls:
                 for fc in calls:
-                    # Dispatch the tool call to our implementation
-                    function_call_result = call_function(fc, verbose=args.verbose)
-
-                    # Validate/peek into the tool response payload (optional)
                     try:
+                        # Dispatch the tool call to our implementation
+                        function_call_result = call_function(fc, verbose=args.verbose)
+
+                        # Validate the function call result structure
+                        if not function_call_result.parts:
+                            raise RuntimeError(f"Function '{fc.name}' returned no parts")
+                        
+                        if not function_call_result.parts[0].function_response:
+                            raise RuntimeError(f"Function '{fc.name}' returned invalid response structure")
+
+                        # Validate/peek into the tool response payload (optional)
                         resp = function_call_result.parts[0].function_response.response
 
                         # Append the structured tool response for the next turn
@@ -106,13 +131,17 @@ def main():
                             )
                         )
 
-                    except Exception:
-                        # The tool must return a standardized Content shape
-                        raise RuntimeError("Function call returned invalid Content shape")
+                        # Verbose: show summarized tool output
+                        if args.verbose:
+                            print(f"-> {resp}")
+
+                    except RuntimeError as e:
+                        print(f"Function call error:  {e}")
+                        sys.exit(1)
                     
-                    # Verbose: show summarized tool output
-                    if args.verbose:
-                        print(f"-> {resp}")
+                    except (IndexError, AttributeError) as e:
+                        print(f"Function '{fc.name}' returned malformed response:  {e}")
+                        sys.exit(1)
 
                 # Continue so the model can react to tool outputs
                 continue
@@ -126,6 +155,11 @@ def main():
             # Handle unexpected response shapes or output errors
             print(f"failed to read response: {e}")
             sys.exit(1)
+
+    else:
+        # This runs if the loop completes without breaking
+        print(f"Warning: Agent reached maximum iterations ({MAX_ITERS}) without completing")
+        sys.exit(1)
 
 if __name__ == "__main__":
     # CLI entry point
