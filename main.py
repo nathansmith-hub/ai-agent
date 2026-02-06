@@ -13,19 +13,19 @@ from call_functions import available_functions
 from functions.call_function import call_function
 
 def main():
-    # Load env vars from .env if present
+    # Load environment variables from .env file (if it exists)
     load_dotenv()
     api_key = os.environ.get("GEMINI_API_KEY")
     
-    # Fail fast if API key missing
+    # Exit immediately if the API key isn't configured
     if not api_key:
         print("Error: GEMINI_API_KEY not set.")
         sys.exit(1)
 
-    # Create Gemini client
+    # Initialize the Gemini API client
     client = genai.Client(api_key=api_key)
 
-    # CLI setup
+    # Set up CLI argument parsing
     parser = argparse.ArgumentParser(
         description="LLM-powered CLI that can read, update, and run Python code via Gemini tools."
     )
@@ -42,55 +42,55 @@ def main():
     )
     args = parser.parse_args()
 
-    # Seed the conversation with the user prompt
+    # Start the conversation history with the user's input
     messages = [
         types.Content(role="user", parts=[types.Part(text=args.prompt)]),
     ]
 
-    # Agent loop: iterate tool->model until final text or max iters
+    #  Run the agent loop: let the model call tools and respond until it finishes or hits the iteration limit
     for _ in range(MAX_ITERS):
         try:
-            # Ask the model for the next step using full message history
+            # Send the conversation history to Gemini and get the next response
             response = client.models.generate_content(
                 model='gemini-2.0-flash-001',
                 contents=messages,
                 config=types.GenerateContentConfig(
-                    tools=[available_functions],           # advertise available tools
-                    system_instruction=system_prompt,      # steer behavior toward tool use
+                    tools=[available_functions],           # provide the list of callable tools
+                    system_instruction=system_prompt,      # guide the model's behavior
                 ),
             )
 
-            # Validate we received a usable response
+            # Check that we received a valid response
             if not response:
                 raise RuntimeError("Gemini API returned empty response")
 
-            # Add all candidate contents to the conversation
+            # Add the model's response to the conversation history
             if getattr(response, "candidates", None):
                 for cand in response.candidates:
                     if cand.content is not None:
                         messages.append(cand.content)
             
             else:
-                # No candidates could indicate rate limiting or other API issues
+                # Missing candidates might indicate rate limiting or API problems
                 raise RuntimeError("Gemini API response contained no candidates")
 
         except ValueError as e:
-            # Handle incorrect parameters
+            # The request had invalid parameters
             print(f"Invalid request parameters:  {e}")
             sys.exit(1)
 
         except ConnectionError as e:
-            # Handle network issues
+            # Network connection to the API failed
             print(f"Network error connecting to Gemini API:  {e}")
             sys.exit(1)
 
         except Exception as e:
-            # Handle other API call failures
+            # Catch any other errors from the API call
             print(f"generate_content failed: {e}")
             sys.exit(1)
 
         try:
-            # Optional usage metadata
+            # Display token usage information if verbose mode is enabled
             meta = getattr(response, "usage_metadata", None)
             if args.verbose:
                 print()
@@ -101,25 +101,25 @@ def main():
                         print(f"Prompt tokens: {meta.prompt_token_count}")
                         print(f"Response tokens: {meta.candidates_token_count}")
 
-            # If the model requested tool calls, execute them
+            # Check if the model wants to call any tools (functions)
             calls = getattr(response, "function_calls", None)
             if calls:
                 for fc in calls:
                     try:
-                        # Dispatch the tool call to our implementation
+                        # Execute the requested function and get the result
                         function_call_result = call_function(fc, verbose=args.verbose)
 
-                        # Validate the function call result structure
+                        # Ensure the function returned a properly structured result
                         if not function_call_result.parts:
                             raise RuntimeError(f"Function '{fc.name}' returned no parts")
                         
                         if not function_call_result.parts[0].function_response:
                             raise RuntimeError(f"Function '{fc.name}' returned invalid response structure")
 
-                        # Validate/peek into the tool response payload (optional)
+                        # Extract the actual response data from the function result
                         resp = function_call_result.parts[0].function_response.response
 
-                        # Append the structured tool response for the next turn
+                        # Add the function's output to the conversation so the model can see it
                         messages.append(
                             types.Content(
                                 role="user",
@@ -131,7 +131,7 @@ def main():
                             )
                         )
 
-                        # Verbose: show summarized tool output
+                        # Show the function output in verbose mode
                         if args.verbose:
                             print(f"-> {resp}")
 
@@ -143,25 +143,25 @@ def main():
                         print(f"Function '{fc.name}' returned malformed response:  {e}")
                         sys.exit(1)
 
-                # Continue so the model can react to tool outputs
+                # Go back to the start of the loop so the model can process the function results
                 continue
 
-            # No tool calls: if we have final text, print and exit
+            # If there are no function calls, check for a final text response
             if response.text:
                 print(response.text)
                 break
 
         except Exception as e:
-            # Handle unexpected response shapes or output errors
+            # Handle any unexpected errors while processing the response
             print(f"failed to read response: {e}")
             sys.exit(1)
 
     else:
-        # This runs if the loop completes without breaking
+        # This executes only if the loop finished without breaking (hit max iterations)
         print(f"Warning: Agent reached maximum iterations ({MAX_ITERS}) without completing")
         sys.exit(1)
 
 if __name__ == "__main__":
-    # CLI entry point
+    # Run the main function when this script is executed directly
     main()
     
