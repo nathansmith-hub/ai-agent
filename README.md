@@ -1,4 +1,4 @@
-# ai-agent
+# AI-Agent
 
 This is my third Boot.dev project, an LLM-powered command-line tool that can read, update, and run Python code using the Gemini API.
 
