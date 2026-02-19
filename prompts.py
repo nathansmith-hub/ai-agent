@@ -1,7 +1,6 @@
 # python
 
-# System prompt that defines the AI agent's role and available operations
-# for interacting with the filesystem within a sandboxed working directory
+# System prompt that defines the AI agent's role and available operations for interacting with the filesystem within a sandboxed working directory
 system_prompt = """
 You are a helpful AI coding agent.
 
